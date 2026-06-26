@@ -6,35 +6,35 @@ const products = [
   {
     title: "برسيم نجم الصيف (ALFALFA NAJEM ALSEAYF)",
     price: "Dhs. 140.00",
-    image: "assets/product-alfalfa.webp",
+    image: "assets/product-alfalfa.jpg",
     url: "product-alfalfa.html",
     action: "عرض الخيارات",
   },
   {
     title: "عشبة الفيل حزمة 1kg",
     price: "Dhs. 22.00",
-    image: "assets/product-elephant-grass.webp",
+    image: "assets/product-elephant-grass.jpg",
     url: "product-elephant-grass.html",
     action: "عرض المنتج",
   },
   {
     title: "عشب بونيكام برازيلي 1 كجم",
     price: "Dhs. 95.00",
-    image: "assets/product-brazilian-bunicam.webp",
+    image: "assets/product-brazilian-bunicam.jpg",
     url: "product-brazilian-bunicam.html",
     action: "عرض المنتج",
   },
   {
     title: "بذور عشبة كاتامبورا رودس 1 كجم",
     price: "Dhs. 52.00 - Dhs. 520.00",
-    image: "assets/product-katambora-rhodes.webp",
+    image: "assets/product-katambora-rhodes.jpg",
     url: "product-katambora-rhodes.html",
     action: "عرض الخيارات",
   },
   {
     title: "عشب السودان حزمة 1kg",
     price: "Dhs. 22.00",
-    image: "assets/product-sudan-grass.webp",
+    image: "assets/product-sudan-grass.jpg",
     url: "product-sudan-grass.html",
     action: "عرض المنتج",
   },
@@ -255,16 +255,35 @@ function translateText(value) {
 
 function bootImageFallbacks() {
   document.querySelectorAll("img").forEach((image) => {
-    const useFallback = () => {
-      const src = image.getAttribute("src") || "";
-      if (!src.endsWith(".webp")) return;
-      image.src = src.replace(/\.webp$/, ".jpg");
+    const originalSrc = image.getAttribute("src") || "";
+    if (!originalSrc) return;
+
+    const tryFallback = (tried) => {
+      if (originalSrc.endsWith(".jpg") && !tried.includes("webp")) {
+        const webpSrc = originalSrc.replace(/\.jpg$/, ".webp");
+        image.addEventListener("error", () => {
+          // both jpg and webp failed — leave as-is
+        }, { once: true });
+        image.src = webpSrc;
+      } else if (originalSrc.endsWith(".webp") && !tried.includes("jpg")) {
+        const jpgSrc = originalSrc.replace(/\.webp$/, ".jpg");
+        image.addEventListener("error", () => {
+          // both webp and jpg failed — leave as-is
+        }, { once: true });
+        image.src = jpgSrc;
+      }
+    };
+
+    const onError = () => {
+      const currentSrc = image.getAttribute("src") || "";
+      const tried = currentSrc.endsWith(".webp") ? ["webp"] : ["jpg"];
+      tryFallback(tried);
     };
 
     if (image.complete && image.naturalWidth === 0) {
-      useFallback();
+      onError();
     } else {
-      image.addEventListener("error", useFallback, { once: true });
+      image.addEventListener("error", onError, { once: true });
     }
   });
 }
@@ -450,10 +469,82 @@ function bootCinematicReveal() {
   reveals.forEach((element) => observer.observe(element));
 }
 
+
+function bootCart() {
+  let cart = [];
+  try {
+    cart = JSON.parse(localStorage.getItem("migfarm-cart") || "[]");
+  } catch (e) {
+    cart = [];
+  }
+
+  function getTotal() {
+    return cart.reduce((sum, item) => sum + item.qty, 0);
+  }
+
+  function updateCartUI() {
+    const total = getTotal();
+    document.querySelectorAll(".cart-link strong").forEach((el) => {
+      el.textContent = String(total);
+    });
+  }
+
+  updateCartUI();
+
+  document.querySelectorAll(".product-action, [href*='migfarm.com/ar/products']").forEach((btn) => {
+    const isAddToCart = btn.textContent.includes("أضف") || btn.textContent.includes("Add to Cart");
+    if (!isAddToCart) return;
+
+    btn.addEventListener("click", (e) => {
+      const page = location.pathname.split("/").pop() || "index.html";
+      const titleEl = document.querySelector("h1");
+      const priceEl = document.querySelector(".product-detail-info strong");
+      const qtyEl = document.querySelector("[data-qty] span");
+
+      const qty = qtyEl ? Math.max(1, parseInt(qtyEl.textContent, 10) || 1) : 1;
+      const existing = cart.find((i) => i.url === page);
+
+      if (existing) {
+        existing.qty += qty;
+      } else {
+        cart.push({
+          url: page,
+          title: titleEl ? titleEl.textContent.trim() : page,
+          price: priceEl ? priceEl.textContent.trim() : "",
+          qty,
+        });
+      }
+
+      try {
+        localStorage.setItem("migfarm-cart", JSON.stringify(cart));
+      } catch (e) {}
+
+      updateCartUI();
+    });
+  });
+}
+
+
+function bootCartCounter() {
+  const cartLinks = document.querySelectorAll(".cart-link strong");
+  let count = 0;
+  try {
+    const stored = JSON.parse(localStorage.getItem("migfarm-cart") || "[]");
+    count = Array.isArray(stored) ? stored.reduce((sum, item) => sum + (item.qty || 1), 0) : 0;
+  } catch (e) {
+    count = 0;
+  }
+  cartLinks.forEach((el) => {
+    el.textContent = String(count);
+    el.setAttribute("aria-label", count + " منتجات في السلة");
+  });
+}
+
 bootMenu();
 bootTheme();
 renderProductRails();
 bootQuantityControls();
 bootLanguage();
+bootCart();
 bootImageFallbacks();
 bootCinematicReveal();
